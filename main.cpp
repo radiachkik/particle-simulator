@@ -3,7 +3,6 @@
 #include "simulation.hpp"
 
 simulation::simulationConfig config = {
-        2,
         12000,
         4,
         new float[16]{

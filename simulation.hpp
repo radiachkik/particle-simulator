@@ -3,7 +3,6 @@
 
 namespace simulation {
     typedef struct {
-        const unsigned short dimensions;
         const unsigned long points_per_cloud;
         const unsigned short num_point_clouds;
         const float *gravities;

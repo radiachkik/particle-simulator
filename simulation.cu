@@ -11,11 +11,12 @@ namespace simulation {
         __constant__ float *dev_norm_coordinates;
         __constant__ float *dev_forces;
         __constant__ unsigned int dev_num_point_clouds;
-        __constant__ unsigned int dev_dimensions;
+        __constant__ const unsigned int dev_dimensions = 2;
         __constant__ unsigned int dev_points_per_cloud;
         __constant__ float *dev_distance_thresholds;
         __constant__ bool dev_border_enabled;
 
+        const unsigned int host_dimensions = 2;
         simulationConfig *config;
         float *host_norm_coordinates;
 
@@ -50,15 +51,18 @@ namespace simulation {
         __global__
         void calculate_forces_kernel()
         {
-            __shared__ float shared_force[blockSize * 3];
+            __shared__ float shared_force[blockSize * dev_dimensions];
+            __shared__ float p1[dev_dimensions];
 
             // Each block is responsible for calculating the summed forces applied on p1
             for (auto p1_index = blockIdx.x; p1_index < dev_points_per_cloud * dev_num_point_clouds; p1_index += gridDim.x) {
-                float *p1 = dev_coordinates + p1_index * dev_dimensions;
+                if (threadIdx.x < dev_dimensions) {
+                    p1[threadIdx.x] = dev_coordinates[p1_index * dev_dimensions + threadIdx.x];
+                }
                 auto pc1_index = p1_index / dev_points_per_cloud;
-                float force[3];
-                for (int d = 0; d < dev_dimensions; d++) {
-                    force[d] = 0.0f;
+                float force[dev_dimensions];
+                for (float & d : force) {
+                    d = 0.0f;
                 }
                 // Each thread is responsible for calculating the summed forces applied on p1 for some p2
                 for(auto p2_index = threadIdx.x; p2_index < dev_points_per_cloud * dev_num_point_clouds; p2_index += blockDim.x) {
@@ -67,7 +71,7 @@ namespace simulation {
                     float gravity = dev_gravities[pc1_index * dev_num_point_clouds + pc2_index];
                     float distance_threshold = dev_distance_thresholds[pc1_index * dev_num_point_clouds + pc2_index];
 
-                    float distance[3];
+                    float distance[dev_dimensions];
                     for (int d = 0; d < dev_dimensions; d++) {
                         distance[d] = p2[d] - p1[d];
                     }
@@ -127,14 +131,13 @@ namespace simulation {
 
     void initialize_simulation(simulationConfig *simulation_config) {
         config = simulation_config;
-        const unsigned int num_values = config->num_point_clouds * config->points_per_cloud * config->dimensions;
+        const unsigned int num_values = config->num_point_clouds * config->points_per_cloud * host_dimensions;
 
         host_norm_coordinates = (float*) malloc(num_values * sizeof(float));
         float *tmp_pointer;
 
         CUDA_CALL(cudaMemcpyToSymbol(dev_num_point_clouds, &config->num_point_clouds, sizeof(dev_num_point_clouds)));
         CUDA_CALL(cudaMemcpyToSymbol(dev_points_per_cloud, &config->points_per_cloud, sizeof(dev_num_point_clouds)));
-        CUDA_CALL(cudaMemcpyToSymbol(dev_dimensions, &config->dimensions, sizeof(dev_dimensions)));
         CUDA_CALL(cudaMemcpyToSymbol(dev_border_enabled, &config->border_enabled, sizeof(dev_border_enabled)));
 
         CUDA_CALL(cudaMalloc(&tmp_pointer, config->num_point_clouds * config->num_point_clouds * sizeof(float)));
@@ -192,7 +195,7 @@ namespace simulation {
     float *get_coordinates() {
         normalize_coordinates_kernel<<<64, 512>>>();
 
-        unsigned int total_values = config->num_point_clouds * config->points_per_cloud * config->dimensions;
+        unsigned int total_values = config->num_point_clouds * config->points_per_cloud * host_dimensions;
         float *dev_norm_coordinates_pointer;
         CUDA_CALL(cudaMemcpyFromSymbol(&dev_norm_coordinates_pointer, dev_norm_coordinates, sizeof(dev_norm_coordinates)));
         CUDA_CALL(cudaMemcpy(host_norm_coordinates, dev_norm_coordinates_pointer, total_values * sizeof(float), cudaMemcpyDeviceToHost));

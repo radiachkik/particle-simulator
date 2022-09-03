@@ -39,13 +39,12 @@ namespace gui {
                 glPointSize(2.0);
                 glBegin(GL_POINTS);
 
-                int color_index = 0;
                 float *coordinates = simulation::get_coordinates();
                 for (auto pc_index = 0; pc_index < config->num_point_clouds; pc_index++) {
                     glColor3ub(colors[pc_index][0], colors[pc_index][1], colors[pc_index][2]);
-                    float *pc_coordinates = coordinates + pc_index * config->points_per_cloud * config->dimensions;
+                    float *pc_coordinates = coordinates + pc_index * config->points_per_cloud * 2;
                     for (auto p_index = 0; p_index < config->points_per_cloud; p_index++) {
-                        glVertex2fv(pc_coordinates + p_index * config->dimensions);
+                        glVertex2fv(pc_coordinates + p_index * 2);
                     }
                 }
 
@@ -72,11 +71,7 @@ namespace gui {
 
     void run_animation(simulation::simulationConfig *sim_config) {
         config = sim_config;
-        if (config->dimensions == 2 ){
-            glutDisplayFunc(display2d);
-        } else {
-            throw runtime_error("Dimensions must be 2 (for now)");
-        }
+        glutDisplayFunc(display2d);
         initGL();
         glutMainLoop();
     }
