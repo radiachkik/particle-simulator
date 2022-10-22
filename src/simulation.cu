@@ -95,7 +95,6 @@ namespace simulation {
                     half2 r = distance * distance;
                     r = __low2half2(r) + __high2half2(r);
                     r = h2sqrt(r);
-                    // printf("R between %i and %i: %f, %f \n", p1_index, p2_index, __low2float(r), __high2float(r));
                     if (r < distance_threshold && r >= dev_min_distance_threshold) {
                         force += distance / r * gravity;
                     }
@@ -118,9 +117,6 @@ namespace simulation {
                 // Copy forces to global memory
                 if (threadIdx.x == 0) {
                     dev_forces[p1_index + threadIdx.x] = shared_force[threadIdx.y][threadIdx.x];
-                    float x_force = __low2float(shared_force[threadIdx.y][threadIdx.x]);
-                    float y_force = __high2float(shared_force[threadIdx.y][threadIdx.x]);
-                    // printf("Forces for point %i: %f, %f \n", p1_index + threadIdx.x, x_force, y_force);
                 }
             }
         }
@@ -159,7 +155,7 @@ namespace simulation {
         const unsigned int num_values = num_points * 2;
         const unsigned int num_point_cloud_combinations = config->num_point_clouds * config->num_point_clouds;
 
-        host_norm_coordinates = (float*) malloc(num_points * sizeof(float));
+        host_norm_coordinates = (float*) malloc(num_points * 2 * sizeof(float));
 
         half2 distance_threshold = __float2half2_rn(1.0f);
         CUDA_CALL(cudaMemcpyToSymbol(dev_min_distance_threshold, &distance_threshold, sizeof(dev_min_distance_threshold)));
@@ -234,10 +230,12 @@ namespace simulation {
     float *get_coordinates() {
         normalize_coordinates_kernel<<<64, 512>>>();
 
-        unsigned int total_values = config->num_point_clouds * config->points_per_cloud;
+        unsigned int total_values = config->num_point_clouds * config->points_per_cloud * 2;
         float *dev_norm_coordinates_pointer;
         CUDA_CALL(cudaMemcpyFromSymbol(&dev_norm_coordinates_pointer, dev_norm_coordinates, sizeof(dev_norm_coordinates)));
         CUDA_CALL(cudaMemcpy(host_norm_coordinates, dev_norm_coordinates_pointer, total_values * sizeof(float), cudaMemcpyDeviceToHost));
+        cudaDeviceSynchronize();
+        float *foo = host_norm_coordinates;
         return host_norm_coordinates;
     }
 }

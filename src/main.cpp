@@ -3,7 +3,7 @@
 #include "../include/gui.hpp"
 
 simulation::simulationConfig config = {
-        10000,
+        15000,
         4,
         new float[16]{
                 4.0, 7.50, 0.00, 9.00,
@@ -17,7 +17,7 @@ simulation::simulationConfig config = {
                 79, 77, 63, 154,
                 144, 72, 154, 50
         },
-        false
+        true
 };
 
 int main(int argc, char *argv[]) {
