@@ -1,9 +1,7 @@
 #include <GL/glut.h>
 #include "../include/gui.hpp"
-#include "../include/simulation.hpp"
 #include <chrono>
 #include <thread>
-#include <iostream>
 
 using namespace std;
 

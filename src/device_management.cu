@@ -1,5 +1,4 @@
 #include <iostream>
-#include <cuda_runtime_api.h>
 #include "../include/device_management.hpp"
 #include "../include/utils.h"
 
