@@ -92,11 +92,10 @@ namespace simulation {
                     half2 gravity = dev_gravities[pc1_index * dev_num_point_clouds + pc2_index];
                     half2 distance_threshold = dev_distance_thresholds[pc1_index * dev_num_point_clouds + pc2_index];
                     half2 distance = p2 - p1;
-                    distance = distance * distance;
-                    // printf("Distance between %i and %i: %f, %f \n", p1_index, p2_index, __low2float(distance), __high2float(distance));
-                    half2 r = __low2half2(distance) + __high2half2(distance);
+                    half2 r = distance * distance;
+                    r = __low2half2(r) + __high2half2(r);
                     r = h2sqrt(r);
-                    printf("R between %i and %i: %f, %f \n", p1_index, p2_index, __low2float(distance_threshold), __high2float(distance_threshold));
+                    // printf("R between %i and %i: %f, %f \n", p1_index, p2_index, __low2float(r), __high2float(r));
                     if (r < distance_threshold && r >= dev_min_distance_threshold) {
                         force += distance / r * gravity;
                     }
@@ -158,6 +157,7 @@ namespace simulation {
         config = simulation_config;
         const unsigned int num_points = config->num_point_clouds * config->points_per_cloud;
         const unsigned int num_values = num_points * 2;
+        const unsigned int num_point_cloud_combinations = config->num_point_clouds * config->num_point_clouds;
 
         host_norm_coordinates = (float*) malloc(num_points * sizeof(float));
 
@@ -169,12 +169,20 @@ namespace simulation {
 
         half2 *tmp_pointer;
 
-        CUDA_CALL(cudaMalloc(&tmp_pointer, config->num_point_clouds * config->num_point_clouds * sizeof(half2)));
-        CUDA_CALL(cudaMemcpy(tmp_pointer, config->distance_thresholds, config->num_point_clouds * config->num_point_clouds * sizeof(half2), cudaMemcpyHostToDevice));
+        auto* converted_distance_thresholds = (half2*) malloc(num_point_cloud_combinations * sizeof(half2));
+        for (int i = 0; i < num_point_cloud_combinations; i++) {
+            converted_distance_thresholds[i] = __float2half2_rn(config->distance_thresholds[i]);
+        }
+        CUDA_CALL(cudaMalloc(&tmp_pointer, num_point_cloud_combinations * sizeof(half2)));
+        CUDA_CALL(cudaMemcpy(tmp_pointer, converted_distance_thresholds, num_point_cloud_combinations * sizeof(half2), cudaMemcpyHostToDevice));
         CUDA_CALL(cudaMemcpyToSymbol(dev_distance_thresholds, &tmp_pointer, sizeof(dev_distance_thresholds)));
 
-        CUDA_CALL(cudaMalloc((void **)&tmp_pointer, config->num_point_clouds * config->num_point_clouds * sizeof(half2)));
-        CUDA_CALL(cudaMemcpy(tmp_pointer, config->gravities, config->num_point_clouds * config->num_point_clouds * sizeof(half2), cudaMemcpyHostToDevice));
+        auto* converted_gravities = (half2*) malloc(num_point_cloud_combinations * sizeof(half2));
+        for (int i = 0; i < num_point_cloud_combinations; i++) {
+            converted_gravities[i] = __float2half2_rn(config->gravities[i]);
+        }
+        CUDA_CALL(cudaMalloc((void **)&tmp_pointer, num_point_cloud_combinations * sizeof(half2)));
+        CUDA_CALL(cudaMemcpy(tmp_pointer, converted_gravities, num_point_cloud_combinations * sizeof(half2), cudaMemcpyHostToDevice));
         CUDA_CALL(cudaMemcpyToSymbol(dev_gravities, &tmp_pointer, sizeof(dev_gravities)));
 
         CUDA_CALL(cudaMalloc(&tmp_pointer, num_points * sizeof(half2)));
