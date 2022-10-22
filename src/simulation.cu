@@ -33,8 +33,9 @@ namespace simulation {
 
             curand_init(134, id, 0, &rand_state[id]);
             curandState localState = rand_state[id];
+
             for(unsigned int i = id; i < total_values; i += total_threads) {
-                dev_coordinates[i] = __float2half2_rn(curand_uniform(&localState) * 900 - 450);
+                dev_coordinates[i] = __floats2half2_rn(curand_uniform(&localState) * 900 - 450, curand_uniform(&localState) * 900 - 450);
             }
         }
 
@@ -43,11 +44,11 @@ namespace simulation {
         {
             unsigned int id = threadIdx.x + blockIdx.x * blockDim.x;
             unsigned int total_threads = blockDim.x * gridDim.x;
-            unsigned int total_values = dev_points_per_cloud * dev_num_point_clouds;
+            unsigned int num_points = dev_points_per_cloud * dev_num_point_clouds;
             half2 scale_factor = __float2half2_rn(500.0f);
             half2 normalized_coordinate;
 
-            for(unsigned int i = id; i < total_values; i += total_threads) {
+            for(unsigned int i = id; i < num_points; i += total_threads) {
                 normalized_coordinate = __h2div(dev_coordinates[i], scale_factor);
                 dev_norm_coordinates[i * 2] =  __low2float(normalized_coordinate);
                 dev_norm_coordinates[i * 2 + 1] =  __high2float(normalized_coordinate);
@@ -59,8 +60,8 @@ namespace simulation {
         void calculate_forces_kernel()
         {
             __shared__ half2 shared_force[block_size_y][block_size_x];
-            __shared__ half2 partial_pc1[block_size_x];
-            __shared__ half2 partial_pc2[block_size_y];
+            __shared__ half2 partial_pc1[block_size_y];
+            __shared__ half2 partial_pc2[block_size_x];
 
             auto thread_y_id = threadIdx.y + blockIdx.y * blockDim.y;
             auto thread_x_id = threadIdx.x + blockIdx.x * blockDim.x;
@@ -73,15 +74,16 @@ namespace simulation {
             // Each y block is responsible for calculating the summed forces applied on subset pc1
             for (auto p1_index = thread_y_id; p1_index < num_points; p1_index += num_y_threads) {
                 if (threadIdx.x == 0) {
-                    partial_pc1[threadIdx.y + threadIdx.x] = dev_coordinates[p1_index + threadIdx.x];
+                    partial_pc1[threadIdx.y] = dev_coordinates[p1_index];
                 }
+                __syncthreads();
                 half2 force = __float2half2_rn(0.0f);
                 half2 p1 = partial_pc1[threadIdx.y];
                 auto pc1_index = p1_index / dev_points_per_cloud;
                 // Each x block is responsible for calculating the forces between pc1 and a subset pc2
-                for(auto p2_index = thread_x_id; p2_index < dev_points_per_cloud * dev_num_point_clouds; p2_index += num_x_threads) {
+                for(auto p2_index = thread_x_id; p2_index < num_points; p2_index += num_x_threads) {
                     if (threadIdx.y == 0) {
-                        partial_pc2[threadIdx.x + threadIdx.y] = dev_coordinates[p2_index + threadIdx.y];
+                        partial_pc2[threadIdx.x] = dev_coordinates[p2_index];
                     }
                     __syncthreads();
 
@@ -91,8 +93,10 @@ namespace simulation {
                     half2 distance_threshold = dev_distance_thresholds[pc1_index * dev_num_point_clouds + pc2_index];
                     half2 distance = p2 - p1;
                     distance = distance * distance;
+                    // printf("Distance between %i and %i: %f, %f \n", p1_index, p2_index, __low2float(distance), __high2float(distance));
                     half2 r = __low2half2(distance) + __high2half2(distance);
                     r = h2sqrt(r);
+                    printf("R between %i and %i: %f, %f \n", p1_index, p2_index, __low2float(distance_threshold), __high2float(distance_threshold));
                     if (r < distance_threshold && r >= dev_min_distance_threshold) {
                         force += distance / r * gravity;
                     }
@@ -115,6 +119,9 @@ namespace simulation {
                 // Copy forces to global memory
                 if (threadIdx.x == 0) {
                     dev_forces[p1_index + threadIdx.x] = shared_force[threadIdx.y][threadIdx.x];
+                    float x_force = __low2float(shared_force[threadIdx.y][threadIdx.x]);
+                    float y_force = __high2float(shared_force[threadIdx.y][threadIdx.x]);
+                    // printf("Forces for point %i: %f, %f \n", p1_index + threadIdx.x, x_force, y_force);
                 }
             }
         }
@@ -220,7 +227,7 @@ namespace simulation {
         normalize_coordinates_kernel<<<64, 512>>>();
 
         unsigned int total_values = config->num_point_clouds * config->points_per_cloud;
-        half2 *dev_norm_coordinates_pointer;
+        float *dev_norm_coordinates_pointer;
         CUDA_CALL(cudaMemcpyFromSymbol(&dev_norm_coordinates_pointer, dev_norm_coordinates, sizeof(dev_norm_coordinates)));
         CUDA_CALL(cudaMemcpy(host_norm_coordinates, dev_norm_coordinates_pointer, total_values * sizeof(float), cudaMemcpyDeviceToHost));
         return host_norm_coordinates;

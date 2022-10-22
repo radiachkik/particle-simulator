@@ -1,6 +1,6 @@
 #include "../include/device_management.hpp"
-#include "../include/gui.hpp"
 #include "../include/simulation.hpp"
+#include "../include/gui.hpp"
 
 simulation::simulationConfig config = {
         10000,
