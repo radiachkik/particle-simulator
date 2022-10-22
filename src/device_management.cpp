@@ -1,7 +1,7 @@
 #include <iostream>
 #include <cuda_runtime_api.h>
-#include "device_management.hpp"
-#include "utils.h"
+#include "../include/device_management.hpp"
+#include "../include/utils.h"
 
 void ensure_cuda_device_available() {
     int deviceCount;

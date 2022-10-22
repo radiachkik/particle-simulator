@@ -1,9 +1,9 @@
-#include "device_management.hpp"
-#include "gui.hpp"
-#include "simulation.hpp"
+#include "../include/device_management.hpp"
+#include "../include/gui.hpp"
+#include "../include/simulation.hpp"
 
 simulation::simulationConfig config = {
-        12000,
+        10000,
         4,
         new float[16]{
                 4.0, 7.50, 0.00, 9.00,
@@ -20,7 +20,7 @@ simulation::simulationConfig config = {
         false
 };
 
-int main(int argc, char **argv) {
+int main(int argc, char *argv[]) {
     set_cuda_device(0);
     initialize_simulation(&config);
     gui::setup_window(argc, argv);

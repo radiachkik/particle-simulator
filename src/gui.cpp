@@ -1,6 +1,6 @@
 #include <GL/glut.h>
-#include "gui.hpp"
-#include "simulation.hpp"
+#include "../include/gui.hpp"
+#include "../include/simulation.hpp"
 #include <chrono>
 #include <thread>
 #include <iostream>
